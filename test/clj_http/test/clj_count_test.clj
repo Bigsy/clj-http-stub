@@ -1,6 +1,6 @@
 (ns clj-http.test.clj-count-test
   (:require [clj-http.client :as http]
-            [clj-http.stub :refer [*call-counts* *expected-counts*]])
+            [clj-http.stub :refer [*call-counts* *expected-counts* validate-all-call-counts]])
   (:use [clj-http.stub]
         [clojure.test]
         :reload-all))
@@ -142,6 +142,37 @@
       (is false "Should have thrown an exception")
       (catch Exception e
         (is (= (.getMessage e) "Expected route 'http://example.com:get' to be called 1 times but was called 2 times"))))))
+
+(defmacro other-thread
+  "Mostly like future but fails to preserve thread-local bindings."
+  [& body]
+  `(let [p# (promise)
+         t# (new Thread (fn [] (deliver p# (do ~@body))))]     
+     (.start t#)
+     p#))
+
+(deftest async-call-count-test
+  (testing "passes when route is called expected number of times asynchronously"
+    (is (= (with-global-http-stub
+             {"http://example.com/async"
+              {:get (fn [_] {:status 200 :body "async ok"})
+               :times 2}}
+             (let [resp1 @(other-thread (http/get "http://example.com/async"))
+                   resp2 @(other-thread (http/get "http://example.com/async"))]
+               (str (:body resp1) "-" (:body resp2))))
+           "async ok-async ok"))))
+
+(deftest async-call-count-with-different-methods-test
+  (testing "passes when multiple methods are called their expected number of times asynchronously"
+    (is (= (with-global-http-stub
+             {"http://example.com/async-methods"
+              {:get (fn [_] {:status 200 :body "async get"})
+               :post (fn [_] {:status 201 :body "async post"})
+               :times {:get 1 :post 1}}}
+             (let [resp1 @(other-thread (http/get "http://example.com/async-methods"))
+                   resp2 @(other-thread (http/post "http://example.com/async-methods"))]
+               (str (:body resp1) "-" (:body resp2))))
+           "async get-async post"))))
 
 (comment
   (with-http-stub

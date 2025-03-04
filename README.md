@@ -151,3 +151,26 @@ The library provides the following URL matching capabilities:
    "http://example.com/api?a=1&b=2"
    "http://example.com/api?b=2&a=1"
    ```
+
+### Async Support
+
+The library supports async HTTP requests when using `with-global-http-stub`. This is particularly useful for testing code that makes HTTP requests from different threads:
+
+```clojure
+;; Example async test
+(deftest async-http-test
+  (testing "HTTP stubs work across different threads"
+    (with-global-http-stub
+      {"http://example.com/async"
+       {:get (fn [_] {:status 200 :body "async response"})
+        :times 2}}
+      ;; Make requests from different threads
+      (let [thread1 (future (c/get "http://example.com/async"))
+            thread2 (future (c/get "http://example.com/async"))]
+        @thread1
+        @thread2))))
+```
+
+Note that you must use `with-global-http-stub` (not `with-http-stub`) for async support, as it uses `with-redefs` instead of `binding` to ensure the stubs are available across different threads.
+
+The library works with any threading mechanism in Clojure, including `future`, `thread`, core.async, or custom thread pools. The key requirement is to use the global stub variants when testing code that makes HTTP requests from different threads.
