@@ -95,10 +95,7 @@
   [expected-query-params request]
   (let [actual-query-params (get-request-query-params request)
         expected-query-params (normalize-query-params expected-query-params)]
-    (and (= (count expected-query-params) (count actual-query-params))
-         (every? (fn [[k v]]
-                   (= v (get actual-query-params k)))
-                 expected-query-params))))
+    (= expected-query-params actual-query-params)))
 
 (defn parse-url
   "Parse a URL string into a map containing :scheme, :server-name, :server-port, :uri, and :query-string"
@@ -140,9 +137,20 @@
 
 (defn potential-uris-for
   "Returns a set of potential URIs for a request.
-   Uses defaults-or-value to handle common cases like '/', '', or nil."
+   Uses defaults-or-value to handle common cases like '/', '', or nil.
+   Also handles URIs with or without trailing slashes and normalized paths."
   [request-map]
-  (defaults-or-value #{"/" "" nil} (:uri request-map)))
+  (let [uri (:uri request-map)]
+    (if (and uri (not (or (= uri "/") (= uri "") (nil? uri))))
+      (let [base-uris (defaults-or-value #{"/" "" nil} uri)
+            with-slash (when (not (str/ends-with? uri "/"))
+                         (str uri "/"))
+            without-slash (when (and (str/ends-with? uri "/") (not= uri "/"))
+                            (str/replace uri #"/+$" ""))]
+        (cond-> (set base-uris)
+          with-slash (conj with-slash)
+          without-slash (conj without-slash)))
+      (defaults-or-value #{"/" "" nil} uri))))
 
 (defn potential-alternatives-to
   [request uris-fn]
@@ -180,16 +188,16 @@
   (memoize
     (fn [request-map]
       (let [{:keys [scheme server-name server-port uri query-string query-params]} request-map
-            scheme-str (when-not (nil? scheme)
+            scheme-str (when scheme
                          (str (if (keyword? scheme) (name scheme) scheme) "://"))
             query-str (or query-string
                           (when query-params
                             (ring-codec/form-encode query-params)))]
-        (str/join [scheme-str
-                   server-name
-                   (when-not (nil? server-port) (str ":" server-port))
-                   (when-not (nil? uri) uri)
-                   (when-not (nil? query-str) (str "?" query-str))])))))
+        (str scheme-str
+             server-name
+             (when server-port (str ":" server-port))
+             (when uri uri)
+             (when query-str (str "?" query-str)))))))
 
 (defprotocol RouteMatcher
   (matches [address method request]))
