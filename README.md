@@ -2,24 +2,16 @@
 [![MIT License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat)](https://www.tldrlegal.com/l/mit) 
 [![Clojars Project](https://img.shields.io/clojars/v/org.clojars.bigsy/clj-http-stub.svg)](https://clojars.org/org.clojars.bigsy/clj-http-stub)
 
-This is a library for stubbing out HTTP requests in Clojure. It supports both clj-http and http-kit clients with a consistent API. Includes both global and localised stubbing options for different testing scenarios. Stubbing can be isolated to specific test blocks to prevent unintended side effects.
+This is a library for stubbing out HTTP requests in Clojure. It supports clj-http client with a simple API. Includes both global and localised stubbing options for different testing scenarios. Stubbing can be isolated to specific test blocks to prevent unintended side effects.
 
 ## Usage
 
-### With clj-http
+### Usage
 
 ```clojure
 (ns myapp.test.core
    (:require [clj-http.client :as c])
    (:use clj-http.stub))
-```
-
-### With http-kit
-
-```clojure
-(ns myapp.test.core
-   (:require [org.httpkit.client :as http])
-   (:use httpkit.stub))
 ```
 
 The public interface consists of macros:
@@ -30,26 +22,19 @@ The public interface consists of macros:
 * `with-global-fake-routes-in-isolation`
 
 'Global' counterparts use `with-redefs` instead of `binding` internally so they can be used in
-a multi-threaded environment (only available for clj-http).
+a multi-threaded environment.
 
 ### Examples
 
-The API is identical for both clj-http and http-kit, with the only difference being that http-kit uses callbacks/promises while clj-http is synchronous:
+Example usage with clj-http:
 
 ```clojure
-;; With clj-http:
 (with-http-stub
   {"https://api.weather.com/v1/current"
    (fn [request] {:status 200 :headers {} :body "Sunny, 72°F"})}
   (c/get "https://api.weather.com/v1/current"))
 
-;; With http-kit:
-(with-http-stub
-  {"https://api.weather.com/v1/current"
-   (fn [request] {:status 200 :headers {} :body "Sunny, 72°F"})}
-  @(http/get "https://api.weather.com/v1/current"))
-
-;; Route matching examples (works the same for both clients):
+;; Route matching examples:
 (with-http-stub
   {;; Exact string match:
    "https://api.github.com/users/octocat"
@@ -92,7 +77,6 @@ You can specify and validate the number of times a route should be called using 
 The `:times` option can be specified as a sibling of the HTTP methods:
 
 ```clojure
-;; With clj-http:
 (with-http-stub
   {"https://api.example.com/data"
    {:get (fn [_] {:status 200 :body "ok"})
@@ -101,16 +85,6 @@ The `:times` option can be specified as a sibling of the HTTP methods:
   ;; This will pass - route is called exactly twice as expected
   (c/get "https://api.example.com/data")
   (c/get "https://api.example.com/data"))
-
-;; With http-kit:
-(with-http-stub
-  {"https://api.example.com/data"
-   {:get (fn [_] {:status 200 :body "ok"})
-    :times 2}}
-  
-  ;; This will pass - route is called exactly twice as expected
-  @(http/get "https://api.example.com/data")
-  @(http/get "https://api.example.com/data"))
 
 ;; Multiple methods with shared count
 (with-http-stub

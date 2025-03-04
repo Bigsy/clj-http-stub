@@ -142,10 +142,9 @@
   (str/replace url #"/+$" ""))
 
 (defn get-request-method
-  "Gets the request method from either http-kit (:method) or clj-http (:request-method) style requests"
+  "Gets the request method from the request map"
   [request]
-  (or (:method request)
-      (:request-method request)))
+  (:request-method request))
 
 (defn methods-match?
   "Checks if a request method matches an expected method.
@@ -249,8 +248,8 @@
    - Converts string URLs to request maps
    - Sets default method to :get
    - Handles HttpEntity bodies
-   - Ensures consistent method key (:method or :request-method)
-   - Handles both httpkit and clj-http request formats"
+   - Ensures consistent method key (:request-method)
+   - Handles clj-http request format"
   [request]
   (let [req (cond
               ;; Handle string URLs
@@ -267,12 +266,9 @@
               (merge req (parse-url (:url req)))
               req)
         ;; Ensure we have a method (default to :get)
-        req (merge {:method :get} req)
-        ;; Normalize method keys
-        method (or (:method req) (:request-method req))]
+        req (merge {:request-method :get} req)]
     (assoc req
-      :method method
-      :request-method method)))
+      :request-method (:request-method req))))
 
 
 
