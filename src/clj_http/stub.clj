@@ -49,12 +49,14 @@
     obj
     (utf8-bytes obj)))
 
-(defn normalize-path [path]
-  (cond
-    (nil? path) "/"
-    (str/blank? path) "/"
-    (str/ends-with? path "/") path
-    :else (str path "/")))
+(def normalize-path
+  (memoize
+    (fn [path]
+      (cond
+        (nil? path) "/"
+        (str/blank? path) "/"
+        (str/ends-with? path "/") path
+        :else (str path "/")))))
 
 (defn defaults-or-value
   "Given a set of default values and a value, returns either:
@@ -63,21 +65,23 @@
   [defaults value]
   (if (contains? defaults value) (reverse (vec defaults)) (vector value)))
 
-(defn normalize-query-params
+(def normalize-query-params
   "Normalizes query parameters to a consistent format.
    Handles both string and keyword keys, and converts all values to strings."
-  [params]
-  (when params
-    (into {} (for [[k v] params]
-               [(name k) (str v)]))))
+  (memoize
+    (fn [params]
+      (when params
+        (into {} (for [[k v] params]
+                   [(name k) (str v)]))))))
 
-(defn parse-query-string
+(def parse-query-string
   "Parses a query string into a map of normalized parameters.
    Returns empty map for nil or empty query string."
-  [query-string]
-  (if (str/blank? query-string)
-    {}
-    (normalize-query-params (ring-codec/form-decode query-string))))
+  (memoize
+    (fn [query-string]
+      (if (str/blank? query-string)
+        {}
+        (normalize-query-params (ring-codec/form-decode query-string))))))
 
 (defn get-request-query-params
   "Extracts and normalizes query parameters from a request.
@@ -154,10 +158,11 @@
         combinations (cartesian-product query-strings schemes server-ports uris)]
     (map #(merge request (zipmap [:query-string :scheme :server-port :uri] %)) combinations)))
 
-(defn normalize-url-for-matching
+(def normalize-url-for-matching
   "Normalizes a URL string by removing trailing slashes for consistent matching"
-  [url]
-  (str/replace url #"/+$" ""))
+  (memoize
+    (fn [url]
+      (str/replace url #"/+$" ""))))
 
 (defn get-request-method
   "Gets the request method from the request map"
@@ -171,19 +176,20 @@
   (let [request-method (get-request-method request)]
     (contains? (set (distinct [:any request-method])) expected-method)))
 
-(defn address-string-for
-  [request-map]
-  (let [{:keys [scheme server-name server-port uri query-string query-params]} request-map
-        scheme-str (when-not (nil? scheme)
-                     (str (if (keyword? scheme) (name scheme) scheme) "://"))
-        query-str (or query-string
-                      (when query-params
-                        (ring-codec/form-encode query-params)))]
-    (str/join [scheme-str
-               server-name
-               (when-not (nil? server-port) (str ":" server-port))
-               (when-not (nil? uri) uri)
-               (when-not (nil? query-str) (str "?" query-str))])))
+(def address-string-for
+  (memoize
+    (fn [request-map]
+      (let [{:keys [scheme server-name server-port uri query-string query-params]} request-map
+            scheme-str (when-not (nil? scheme)
+                         (str (if (keyword? scheme) (name scheme) scheme) "://"))
+            query-str (or query-string
+                          (when query-params
+                            (ring-codec/form-encode query-params)))]
+        (str/join [scheme-str
+                   server-name
+                   (when-not (nil? server-port) (str ":" server-port))
+                   (when-not (nil? uri) uri)
+                   (when-not (nil? query-str) (str "?" query-str))])))))
 
 (defprotocol RouteMatcher
   (matches [address method request]))
